@@ -62,27 +62,32 @@ def write_mesh_section(wtr):
             wtr.write_num(j.vertices[2])
             wtr.write_num(j.material_index, SINT32)
 
+        real_verts = mesh_object.vertices.values()
         # start uv list
         header_uv_start = len(wtr.txt_data)
 
         uv_loops = mesh_object.uv_layers.active.data.values()
         mesh_loops = mesh_object.loops
         uvs = {}
-        for loop_index in range(len(uv_loops)):
-            j = uv_loops[loop_index]
-            vert_index = mesh_loops[loop_index].vertex_index
-            if vert_index not in uvs:
-                uvs[vert_index] = j.uv
+        for vert in real_verts:
+            print("VERT = ", vert)
+            for loop_idx in range(len(mesh_loops)):
+                if mesh_loops[loop_idx].vertex_index == vert.index and vert.index not in uvs:
+                    uvs[vert.index] = uv_loops[loop_idx].uv
+        # old code ahead
+        # for loop_index in range(len(uv_loops)):
+        #     uv_loop = uv_loops[loop_index]
+        #     vert_index = mesh_loops[loop_index].vertex_index
+        #     if vert_index not in uvs:
+        #         uvs[vert_index] = uv_loop.uv
         print("UV LOOP COUNT", len(uv_loops))
         print("UVS COUNT", len(uvs))
         for j in uvs:
             wtr.write_num(uvs[j][0], FLOAT)
-            wtr.write_num(uvs[j][1], FLOAT)
+            wtr.write_num(1.0 - uvs[j][1], FLOAT)
 
         # start vertex list
         header_vert_start = len(wtr.txt_data)
-
-        real_verts = mesh_object.vertices.values()
 
         armature = wtr.mdl_data.active_object.find_armature().data
         bones = armature.bones
@@ -128,8 +133,8 @@ def write_mesh_section(wtr):
                 wtr.write_num(vert_rel[0], FLOAT)
                 wtr.write_num(vert_rel[1], FLOAT)
                 wtr.write_num(vert_rel[2], FLOAT)
-                blender_normal = vert.normal.normalized()  # the normal stored by blender
-                au, av = compress_normal(blender_normal[0], blender_normal[2], blender_normal[1])
+                blender_normal = vert.normal  # the normal stored by blender
+                au, av = compress_normal(blender_normal[0], blender_normal[1], blender_normal[2])
                 wtr.write_num(au, BYTE)
                 wtr.write_num(av, BYTE)
                 wtr.write_num(k.weight, FLOAT)
