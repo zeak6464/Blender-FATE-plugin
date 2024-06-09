@@ -160,7 +160,8 @@ def compress_normal(p_x, p_y, p_z):
     multiplier = (3.14159 / 255.0) * 2.0
     alpha = math.acos(p_y)
     AU = math.floor(alpha / multiplier)
-    beta = math.acos(clamp(p_x / math.sin(alpha)))
+    sin_alpha = math.sin(alpha)
+    beta = math.acos(clamp(p_x / sin_alpha if sin_alpha != 0 else 0.0001))
     AV = math.floor(beta / multiplier)
     return AU, AV
 
