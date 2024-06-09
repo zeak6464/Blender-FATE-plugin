@@ -92,7 +92,7 @@ def read_mesh_section(rdr):
         #transform[3][1] = y
         #transform[3][2] = z
         print("TRANSFORM:", transform)
-        transform = transform.transposed()
+        transform = (transform).transposed()
         bone.pos = position
         #bone.local_pos = position.copy()
         bone.transform = transform

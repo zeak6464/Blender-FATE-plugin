@@ -1,6 +1,8 @@
 import struct
 import math
 import mathutils
+import bpy
+
 
 UINT32 = {"format": "<L", "size": 4}
 SINT32 = {"format": "<l", "size": 4}
@@ -185,8 +187,15 @@ def approx(p_input, p_precision = 0.02):
 
 def get_axis(p_vector):
     vec = p_vector.to_tuple()
-    axis = vec.index(max(vec))
-    return axis
+    axis = 0
+    greatest_value = 0
+    for i in range(len(vec)):
+        if abs(vec[i]) > abs(greatest_value):
+            greatest_value = vec[i]
+            axis = i
+    fixed = [0,0,0]
+    fixed[axis] = greatest_value
+    return tuple(fixed)
 
 bone_export_order = [
     "malePlayer01_Root Spine2",
@@ -208,13 +217,34 @@ bone_export_order = [
     "malePlayer01_Root"
 ]
 
-#def convert_matrix(p_matrix):
-#    mat_copy = p_matrix.copy()
-#    mat_copy[2] *= -1
-#    #for i in range(len(mat_copy)):
-#    #    mat_copy[i][i] *= -1
-#    return mat_copy
+#swap all x and y to convert coordinate systems
+def convert_matrix(p_matrix):
+    new_mat = p_matrix.copy()
+    for row in new_mat:
+        c_y, c_z = row[1], row[2]
+        row[1], row[2] = c_z, c_y
+    r_y, r_z = new_mat[1].copy(), new_mat[2].copy()
+    new_mat[1], new_mat[2] = r_z, r_y
+    return new_mat
     
+def create_material(p_texture):
+        mat = bpy.data.materials.new(name="FATE Material")
+        mat.use_nodes = True
+        mat.node_tree.links.clear()
+        mat.node_tree.nodes.clear()
+        shader_node = mat.node_tree.nodes.new(type="ShaderNodeBsdfDiffuse")
+        shader_node.inputs[0].default_value = (1, 1, 1, 1)
+        output_node = mat.node_tree.nodes.new(type='ShaderNodeOutputMaterial')
+        mat.node_tree.links.new(shader_node.outputs[0], output_node.inputs[0])
+        try:
+            img = bpy.data.images.load(p_texture)
+        except:
+            print("Unable to load image %s. Skipping texture." % p_texture)
+        else:
+            tex_node = mat.node_tree.nodes.new(type='ShaderNodeTexImage')
+            tex_node.image = img
+            mat.node_tree.links.new(tex_node.outputs[0], shader_node.inputs[0])
+        return mat
 
 ##this class is meant to allow for easy conversions between two
 ##-sets of values, e.g names to indices, and vice versa.

@@ -16,6 +16,7 @@ from bpy.types import Operator
 import mathutils
 from bpy_extras import object_utils
 import math
+import os
 
 bl_info = {
     "name": "FATE .mdl importer",
@@ -162,6 +163,8 @@ class Import_MDL(Operator, ImportHelper):
         mesh.update()
         
         bm.free()
+        mat = create_material(os.path.split(filepath)[0] + reader.mdl_data.texture_names[0])
+        mesh.materials.append(mat)
         # add the mesh as an object into the scene with this utility module
         from bpy_extras import object_utils
         object_utils.object_data_add(context, mesh)
@@ -242,28 +245,6 @@ class Import_SMS(Operator, ImportHelper):
                 if i not in bone_order and v.parent in bone_order:
                     bone_order.append(i)
         print(bone_order)
-        #for i in bone_order:
-        #    v = bones[i]
-        #    parent_tfm = mathutils.Matrix.Identity(4)
-        #    if v.parent > -1:
-        #        parent_tfm = reader.mdl_data.bones[v.parent].local_transform
-        #        inverted_tfm = v.local_transform.inverted()
-        #        inverted_tfm.translation = v.pos
-        #        print("inverted_tfm", v.name)
-        #        print(inverted_tfm)
-        #        print("parent_tfm", v.name)
-        #        print(parent_tfm)
-        #        v.local_transform = parent_tfm @ inverted_tfm
-        #        #print("TRANSFORMS")
-        #        #print(i.transform)
-        #        #print(parent.transform)
-        #        #print(i.local_transform)
-        #    else:
-        #        #v.local_transform = mathutils.Matrix.Identity(4)
-        #        v.local_transform.translation = v.pos
-        #    print("FINAL TRANSFORM FOR", v.name)
-        #    print(v.local_transform)
-        #    v.local_pos = v.local_transform.to_translation()
         
         for i in bone_order:
             v = bones[i]
@@ -271,42 +252,17 @@ class Import_SMS(Operator, ImportHelper):
             a_bone.length = 1.0
             tfm = v.transform.copy()
             tfm_loc = v.local_transform.copy()
-            #parent_tfm = mathutils.Matrix.Identity(4)
             a_bone.head = mathutils.Vector((0,0,0))
-            a_bone.tail = mathutils.Vector((0,0.5,0))
+            a_bone.tail = mathutils.Vector((0,0,0.5))
+            if v.pos.magnitude > 0.001:
+                a_bone.tail = v.pos
             if v.parent > -1:
                 parent = bones[v.parent]
                 parent_tfm = parent.local_transform.copy()
-                a_parent = armature_ebones[parent.name]
-                tfm_loc = parent_tfm @ tfm_loc
+                # tfm_loc = parent_tfm @ tfm_loc
                 v.local_transform = tfm_loc.copy()
-                a_bone.head = tfm_loc.translation
-                a_bone.length = 1.0
-            #a_bone.length = v.pos.length
+            a_bone.transform(tfm_loc)
             print(v.name, a_bone.head)
-        #for i in bone_order:
-        #    v = bones[i]
-        #    a_bone = armature_ebones[v.name]
-        #    if a_bone.length < 0.001:
-        #        a_bone.tail = tfm_loc @ mathutils.Vector(v.pos.normalized())
-        #for i in bone_order:
-        #    v = bones[i]
-        #    a_bone = armature_ebones[v.name]
-        #    if len(a_bone.children) == 1:
-        #        a_bone.tail = a_bone.children[0].head
-        #    elif len(a_bone.children) > 1:
-        #        average_pos = mathutils.Vector((0.0,0.0,0.0))
-        #        for j in a_bone.children:
-        #            average_pos = average_pos + j.head
-        #        average_pos = average_pos / len(a_bone.children)
-        #        a_bone.tail = average_pos
-        #    else:
-        #        a_bone.length = 0.5
-        #for i in bone_order:
-        #    v = bones[i]
-        #    a_bone = armature_ebones[v.name]
-        #    if a_bone.length < 0.001:
-        #        a_bone.length = 0.1
         print(len(list(armature_ebones)))
         
         if bpy.ops.object.mode_set.poll():
@@ -327,13 +283,12 @@ class Import_SMS(Operator, ImportHelper):
                 bone_name = reader.mdl_data.bones[j].name
                 #print(bone_name)
                 #bone_pos_local = reader.mdl_data.bones[j].local_pos
-                bone_tfm_local = reader.mdl_data.bones[j].local_transform
+                bone_tfm_local = bones[j].local_transform
                 #print(bone_tfm_local)
-                bone_offset =  mathutils.Vector(reader.mdl_data.vertices[i].bone_offsets[j])
+                bone_offset = mathutils.Vector(reader.mdl_data.vertices[i].bone_offsets[j])
                 #print("WEIGHT " + str(bone_weight))
-                bone_offset = bone_tfm_local @ bone_offset
-                vertex_position_new = bone_offset
-                vertex_position_new = vertex_position_new * bone_weight
+                #bone_offset = bone_tfm_local @ bone_offset
+                vertex_position_new = bone_offset * bone_weight
                 #print(vertex_position_new)
                 vertex_position = vertex_position + vertex_position_new
             if len(vertex_bones) == 0:
@@ -362,6 +317,8 @@ class Import_SMS(Operator, ImportHelper):
         bm.to_mesh(mesh)
         mesh.update()
         bm.free()
+        mat = create_material(os.path.split(filepath)[0] + "/" + reader.mdl_data.texture_names[0])
+        mesh.materials.append(mat)
         
         object_utils.object_data_add(context, mesh)
         #override = bpy.context.copy()
