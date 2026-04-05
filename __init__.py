@@ -214,6 +214,56 @@ def _build_sms_materials(mesh, filepath, mdl_data):
     return material_slot_lookup
 
 
+HELPER_BONE_TRANSLATION_THRESHOLD = 10.0
+HELPER_BONE_MAX_VERTEX_WEIGHT = 0.25
+
+
+def _get_sms_helper_bone_indices(mdl_data):
+    helper_bone_indices = set()
+    for bone_index, bone in enumerate(mdl_data.bones):
+        max_weight = 0.0
+        usage_count = 0
+        for vertex in mdl_data.vertices:
+            if bone_index not in vertex.bones:
+                continue
+            usage_count += 1
+            max_weight = max(max_weight, float(vertex.bone_weights[bone_index]))
+        if (
+            usage_count > 0
+            and float(bone.pos.length) > HELPER_BONE_TRANSLATION_THRESHOLD
+            and max_weight <= HELPER_BONE_MAX_VERTEX_WEIGHT
+        ):
+            helper_bone_indices.add(bone_index)
+    return helper_bone_indices
+
+
+def _get_sms_vertex_influences(mdl_data, vertex_index, helper_bone_indices=None):
+    vertex = mdl_data.vertices[vertex_index]
+    influences = [
+        (bone_index, float(vertex.bone_weights[bone_index]))
+        for bone_index in vertex.bones
+    ]
+    if not helper_bone_indices:
+        return influences
+
+    filtered_influences = [
+        (bone_index, weight)
+        for bone_index, weight in influences
+        if bone_index not in helper_bone_indices
+    ]
+    if not filtered_influences:
+        return influences
+
+    total_weight = sum(weight for _bone_index, weight in filtered_influences)
+    if total_weight <= 1e-6:
+        return influences
+
+    return [
+        (bone_index, weight / total_weight)
+        for bone_index, weight in filtered_influences
+    ]
+
+
 def _get_rest_local_matrix(pose_bone):
     stored_matrix = pose_bone.bone.get("fate_rest_local_matrix")
     if stored_matrix is not None:
@@ -906,6 +956,9 @@ class Import_SMS(Operator, ImportHelper):
         armature_object.data["fate_model_scale"] = float(reader.mdl_data.model_scale)
         armature_object.data["fate_source_path"] = filepath
         _store_rest_local_matrices(armature_object, rest_local_matrices)
+        for bone_index, bone in enumerate(reader.mdl_data.bones):
+            if bone.name in armature_object.data.bones:
+                armature_object.data.bones[bone.name]["fate_bone_index"] = int(bone_index)
         
         root_bone_data = None
         if root_bone is not None and 0 <= root_bone < len(bones):
@@ -913,35 +966,38 @@ class Import_SMS(Operator, ImportHelper):
         
         
         bm = bmesh.new()
+        source_index_layer = bm.verts.layers.int.new("fate_source_vertex_index")
         mesh = bpy.data.meshes.new("Untitled FATE Object")
         material_slot_lookup = _build_sms_materials(mesh, filepath, reader.mdl_data)
+        helper_bone_indices = _get_sms_helper_bone_indices(reader.mdl_data)
         #print(reader.mdl_data.object_count)
         #print(len(reader.mdl_data.vertices))
         #print(len(reader.mdl_data.triangles))
         for i in range(len(reader.mdl_data.vertices)):
             #print("NEW VERTEX")
-            vertex_bones = reader.mdl_data.vertices[i].bones
+            vertex_influences = _get_sms_vertex_influences(
+                reader.mdl_data,
+                i,
+                helper_bone_indices,
+            )
             vertex_position = mathutils.Vector((0,0,0))
-            for j in vertex_bones:
-                bone_weight = reader.mdl_data.vertices[i].bone_weights[j]
-                bone_name = reader.mdl_data.bones[j].name
-                #print(bone_name)
-                #bone_pos_local = reader.mdl_data.bones[j].local_pos
-                bone_tfm_local = reader.mdl_data.bones[j].local_transform
+            for bone_index, bone_weight in vertex_influences:
+                bone_tfm_local = reader.mdl_data.bones[bone_index].local_transform
                 #print(bone_tfm_local)
-                bone_offset =  mathutils.Vector(reader.mdl_data.vertices[i].bone_offsets[j])
+                bone_offset =  mathutils.Vector(reader.mdl_data.vertices[i].bone_offsets[bone_index])
                 #print("WEIGHT " + str(bone_weight))
                 bone_offset = bone_tfm_local @ bone_offset
                 vertex_position_new = bone_offset
                 vertex_position_new = vertex_position_new * bone_weight
                 #print(vertex_position_new)
                 vertex_position = vertex_position + vertex_position_new
-            if len(vertex_bones) == 0:
+            if len(vertex_influences) == 0:
                 if root_bone_data is not None:
                     vertex_position = root_bone_data.local_transform.translation.copy()
                 else:
                     vertex_position = mathutils.Vector((0,0,0))
             vert = bm.verts.new( vertex_position )
+            vert[source_index_layer] = int(i)
         bm.verts.index_update()
         bm.verts.ensure_lookup_table()
         
@@ -969,6 +1025,15 @@ class Import_SMS(Operator, ImportHelper):
         bm.to_mesh(mesh)
         mesh.update()
         bm.free()
+        source_index_attribute = mesh.attributes.get("fate_source_vertex_index")
+        if source_index_attribute is None:
+            source_index_attribute = mesh.attributes.new(
+                name="fate_source_vertex_index",
+                type='INT',
+                domain='POINT',
+            )
+            for vertex_index in range(len(mesh.vertices)):
+                source_index_attribute.data[vertex_index].value = int(vertex_index)
         
         object_utils.object_data_add(context, mesh)
         bpy.context.object["fate_source_path"] = filepath
@@ -981,8 +1046,12 @@ class Import_SMS(Operator, ImportHelper):
                 v_groups.new(name=bone.name)
         for v in range(len(mesh.vertices)):
             vertex_index = v
-            for bone_index in reader.mdl_data.vertices[vertex_index].bones:
-                bone_weight = reader.mdl_data.vertices[vertex_index].bone_weights[bone_index]
+            vertex_influences = _get_sms_vertex_influences(
+                reader.mdl_data,
+                vertex_index,
+                helper_bone_indices,
+            )
+            for bone_index, bone_weight in vertex_influences:
                 bone = reader.mdl_data.bones[bone_index]
                 v_groups[bone_index].add([vertex_index], bone_weight, "REPLACE")
         arm_mod = bpy.data.objects[mesh.name].modifiers.new("Armature", "ARMATURE") #add armature modifier to the mesh
