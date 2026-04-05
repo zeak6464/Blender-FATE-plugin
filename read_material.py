@@ -124,6 +124,26 @@ def read_material_section(rdr):
         bump_map_id = rdr.read_num(SINT32)
         sphere_map_id = rdr.read_num(SINT32)
         multiply_map_id = rdr.read_num(SINT32)
+
+        rdr.mdl_data.material_defs[material_id] = {
+            "name": rdr.mdl_data.material_names[i],
+            "double_sided": double_sided,
+            "visible": material_is_visible[material_id],
+            "collideable": material_is_collideable[material_id],
+            "diffuse_color": (diffuse_r, diffuse_g, diffuse_b),
+            "ambient_color": (ambient_r, ambient_g, ambient_b),
+            "specular_color": (specular_r, specular_g, specular_b),
+            "emissive_color": (emissive_r, emissive_g, emissive_b),
+            "shininess": shininess,
+            "shininess_strength": shininess_strength,
+            "diffuse_map_id": diffuse_map_id,
+            "opacity_map_id": opacity_map_id,
+            "reflection_map_id": reflection_map_id,
+            "illumination_map_id": illumination_map_id,
+            "bump_map_id": bump_map_id,
+            "sphere_map_id": sphere_map_id,
+            "multiply_map_id": multiply_map_id,
+        }
         
         material_references[material_id] = None
         material_object = None

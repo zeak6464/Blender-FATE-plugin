@@ -37,6 +37,7 @@ def read_mesh_section(rdr):
             c = rdr.read_num(UINT32) + existing_verts
             material = rdr.read_num(UINT32)
             rdr.mdl_data.triangles.append((a,b,c))
+            rdr.mdl_data.triangle_material_ids.append(material)
         for j in range(vertex_count):
             u = rdr.read_num(FLOAT)
             v = 1.0 - rdr.read_num(FLOAT)

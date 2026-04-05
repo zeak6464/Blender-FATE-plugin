@@ -36,11 +36,13 @@ class Model_Data: # used for both SMS and MDL files since they have similar form
     def __init__(self):
         self.texture_names = {}
         self.material_names = {}
+        self.material_defs = {}
         self.object_names = []
         self.user_data = {}
         self.uvs = []
         self.vertices = []
         self.triangles = []
+        self.triangle_material_ids = []
         self.materials = []
         self.textures = []
         self.normals = []

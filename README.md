@@ -1,7 +1,7 @@
 # Blender-FATE-plugin
 Plugin to import and export model files from WildTangent's game "FATE".
 
-So far it can only import and export MDL files. SMS importing is partially functional.
+So far MDL import and export work best. SMS importing is partially functional, and SMS exporting currently writes only the base mesh section used by the existing plugin code.
 
 [![ko-fi](https://ko-fi.com/img/githubbutton_sm.svg)](https://ko-fi.com/H2H25J8LM)
 
